@@ -14,7 +14,22 @@ describe("PacketaApiClient", () => {
       post: jest.fn(),
       delete: jest.fn(),
       create: jest.fn(),
-    } as Partial<typeof axios>
+      isAxiosError: jest.fn(),
+      request: jest.fn(),
+      getUri: jest.fn(),
+      head: jest.fn(),
+      options: jest.fn(),
+      put: jest.fn(),
+      patch: jest.fn(),
+      postForm: jest.fn(),
+      putForm: jest.fn(),
+      patchForm: jest.fn(),
+      defaults: {} as any,
+      interceptors: {
+        request: { use: jest.fn(), eject: jest.fn(), clear: jest.fn() },
+        response: { use: jest.fn(), eject: jest.fn(), clear: jest.fn() }
+      }
+    } as unknown as jest.Mocked<typeof axios>
 
     // Mock axios.create to return our mock instance
     (axios.create as jest.Mock).mockReturnValue(mockAxiosInstance)

@@ -9,8 +9,6 @@ import {
   type Order,
   type LineItem,
   type Fulfillment,
-  type ShippingMethod,
-  type Return,
 } from "@medusajs/medusa"
 import { CreateReturnType } from "@medusajs/medusa/dist/types/fulfillment-provider"
 import type { EntityManager } from "typeorm"
