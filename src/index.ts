@@ -10,7 +10,9 @@ import {
   type LineItem,
   type Fulfillment,
   type ShippingMethod,
+  type Return,
 } from "@medusajs/medusa"
+import { CreateReturnType } from "@medusajs/medusa/dist/types/fulfillment-provider"
 import type { EntityManager } from "typeorm"
 import { PacketaApiClient } from "./api-client"
 
@@ -26,13 +28,6 @@ type FulfillmentProviderData = Record<string, unknown>
 type ShippingMethodData = {
   shipping_option: ShippingOptionData
   data: Record<string, unknown>
-}
-
-type CreateReturnType = {
-  order: Order
-  shipping_method: ShippingMethod
-  shipping_data?: Record<string, unknown>
-  items: LineItem[]
 }
 
 // Custom type for Packeta API request
@@ -283,13 +278,8 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
   }
 
   async createReturn(
-    returnOrder: {
-      order: Order;
-      shipping_method: ShippingMethod;
-      shipping_data: Record<string, unknown>;
-      items: LineItem[];
-    }
-  ): Promise<FulfillmentProviderData> {
+    returnOrder: CreateReturnType
+  ): Promise<Record<string, unknown>> {
     // Basic implementation for returns
     // Can be enhanced later with actual return label generation
     // You could implement return label creation via Packeta API here
