@@ -1,0 +1,42 @@
+{
+  "name": "medusa-fulfillment-packeta",
+  "version": "1.0.0",
+  "description": "Packeta (Zásilkovna) fulfillment provider for MedusaJS",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepare": "cross-env NODE_ENV=production npm run build",
+    "test": "jest --passWithNoTests"
+  },
+  "keywords": [
+    "medusa-plugin",
+    "medusajs",
+    "packeta",
+    "zasilkovna",
+    "fulfillment"
+  ],
+  "author": "ShowMore",
+  "license": "MIT",
+  "devDependencies": {
+    "@medusajs/medusa": "^2.2.0",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "cross-env": "^7.0.3",
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.9"
+  },
+  "peerDependencies": {
+    "@medusajs/medusa": "^2.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/showmorecz/zasilkovna-medusa"
+  }
+}
