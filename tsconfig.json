@@ -12,7 +12,12 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "@medusajs/medusa": ["node_modules/@medusajs/medusa"],
+      "@medusajs/medusa/*": ["node_modules/@medusajs/medusa/*"]
+    }
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
