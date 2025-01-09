@@ -31,7 +31,8 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
-    "axios": "^1.7.9"
+    "axios": "^1.7.9",
+    "typeorm": "^0.3.20"
   },
   "peerDependencies": {
     "@medusajs/medusa": "^2.2.0"
