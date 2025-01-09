@@ -9,10 +9,13 @@ import {
   type Order,
   type LineItem,
   type Fulfillment,
+  type ShippingMethod,
+  type Return,
 } from "@medusajs/medusa"
 import { CreateReturnType } from "@medusajs/medusa/dist/types/fulfillment-provider"
 import type { EntityManager } from "typeorm"
 import { PacketaApiClient } from "./api-client"
+import { FulfillmentRepository } from "@medusajs/medusa/dist/repositories/fulfillment"
 
 // Type definitions for Medusa interfaces
 type ShippingOptionData = {
@@ -29,20 +32,6 @@ type ShippingMethodData = {
 }
 
 // Custom type for Packeta API request
-interface PacketaShipmentData {
-  pickup_point_id: string
-  recipient: {
-    name: string
-    email?: string
-    phone?: string | null
-  }
-  order_number: string | number
-  cod_amount: number
-  items: Array<{
-    name: string
-    quantity: number
-  }>
-}
 interface PacketaShipmentData extends Record<string, unknown> {
   pickup_point_id: string
   recipient: {
@@ -64,7 +53,7 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
   static identifier = 'packeta'
   
   protected readonly manager_: EntityManager
-  protected readonly fulfillmentRepository_: Record<string, unknown>
+  protected readonly fulfillmentRepository_: typeof FulfillmentRepository
   protected transactionManager_: EntityManager | undefined
   protected client: PacketaApiClient
 
@@ -77,7 +66,7 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
   constructor(
     container: { 
       manager: EntityManager; 
-      fulfillmentRepository: Record<string, unknown>;
+      fulfillmentRepository: typeof FulfillmentRepository;
       [key: string]: unknown;
     }, 
     options: { api_key?: string; api_url?: string } = {}
@@ -184,14 +173,16 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
       // Store tracking number in fulfillment data
       if (result.tracking_number) {
         await this.atomicPhase_(async (_transactionManager: EntityManager) => {
+          const metadata = {
+            ...(fulfillment.metadata || {}),
+            packeta_shipment_id: String(result.id || ''),
+          }
+          
           await this.fulfillmentRepository_.update(
             fulfillment.id,
             {
-              tracking_number: String(result.tracking_number),
-              metadata: {
-                ...(fulfillment.metadata || {}),
-                packeta_shipment_id: result.id,
-              },
+              tracking_numbers: [String(result.tracking_number)],
+              metadata,
             }
           )
         })
@@ -222,14 +213,16 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
 
       // Update fulfillment status
       await this.atomicPhase_(async (_transactionManager: EntityManager) => {
+        const metadata = {
+          ...(fulfillment.metadata || {}),
+          cancellation_reason: 'Canceled by merchant',
+        }
+
         await this.fulfillmentRepository_.update(
           fulfillment.id,
           {
             canceled_at: new Date(),
-            metadata: {
-              ...(fulfillment.metadata || {}),
-              cancellation_reason: 'Canceled by merchant',
-            },
+            metadata,
           }
         )
       })
