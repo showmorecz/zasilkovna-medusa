@@ -9,12 +9,11 @@ import {
   type Order,
   type LineItem,
   type Fulfillment,
-  type ShippingMethod,
-  type Return,
 } from "@medusajs/medusa"
 import { CreateReturnType } from "@medusajs/medusa/dist/types/fulfillment-provider"
 import type { EntityManager } from "typeorm"
 import { PacketaApiClient } from "./api-client"
+import { FulfillmentRepository } from "@medusajs/medusa/dist/repositories/fulfillment"
 
 // Type definitions for Medusa interfaces
 type ShippingOptionData = {
@@ -31,35 +30,6 @@ type ShippingMethodData = {
 }
 
 // Custom type for Packeta API request
-interface PacketaShipmentData {
-  pickup_point_id: string
-  recipient: {
-    name: string
-    email?: string
-    phone?: string | null
-  }
-  order_number: string | number
-  cod_amount: number
-  items: Array<{
-    name: string
-    quantity: number
-  }>
-}
-/**
- * Type definitions for internal use
- */
-interface CreateFulfillmentInput {
-  order: Order
-  items: LineItem[]
-  metadata?: Record<string, unknown>
-  fulfillment: Fulfillment
-}
-
-interface InjectedDependencies {
-  manager: EntityManager
-  fulfillmentRepository: any
-}
-
 interface PacketaShipmentData extends Record<string, unknown> {
   pickup_point_id: string
   recipient: {
@@ -81,7 +51,7 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
   static identifier = 'packeta'
   
   protected readonly manager_: EntityManager
-  protected readonly fulfillmentRepository_: any
+  protected readonly fulfillmentRepository_: typeof FulfillmentRepository
   protected transactionManager_: EntityManager | undefined
   protected client: PacketaApiClient
 
@@ -94,7 +64,7 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
   constructor(
     container: { 
       manager: EntityManager; 
-      fulfillmentRepository: any;
+      fulfillmentRepository: typeof FulfillmentRepository;
       [key: string]: unknown;
     }, 
     options: { api_key?: string; api_url?: string } = {}
@@ -125,11 +95,11 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
     }]
   }
 
-  async canCalculate(data: ShippingOptionData): Promise<boolean> {
+  async canCalculate(_data: ShippingOptionData): Promise<boolean> {
     return true
   }
 
-  async validateOption(data: ShippingOptionData): Promise<boolean> {
+  async validateOption(_data: ShippingOptionData): Promise<boolean> {
     return true
   }
 
@@ -200,15 +170,17 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
 
       // Store tracking number in fulfillment data
       if (result.tracking_number) {
-        await this.atomicPhase_(async (transactionManager: EntityManager) => {
+        await this.atomicPhase_(async (_transactionManager: EntityManager) => {
+          const metadata = {
+            ...(fulfillment.metadata || {}),
+            packeta_shipment_id: String(result.id || ''),
+          }
+          
           await this.fulfillmentRepository_.update(
             fulfillment.id,
             {
-              tracking_number: String(result.tracking_number),
-              metadata: {
-                ...(fulfillment.metadata || {}),
-                packeta_shipment_id: result.id,
-              },
+              tracking_numbers: [String(result.tracking_number)],
+              metadata,
             }
           )
         })
@@ -238,15 +210,17 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
       const result = await this.client.cancelShipment(shipmentId)
 
       // Update fulfillment status
-      await this.atomicPhase_(async (transactionManager: EntityManager) => {
+      await this.atomicPhase_(async (_transactionManager: EntityManager) => {
+        const metadata = {
+          ...(fulfillment.metadata || {}),
+          cancellation_reason: 'Canceled by merchant',
+        }
+
         await this.fulfillmentRepository_.update(
           fulfillment.id,
           {
             canceled_at: new Date(),
-            metadata: {
-              ...(fulfillment.metadata || {}),
-              cancellation_reason: 'Canceled by merchant',
-            },
+            metadata,
           }
         )
       })
@@ -268,9 +242,9 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
    * @returns Calculated price for the shipping
    */
   async calculatePrice(
-    optionData: Record<string, unknown>,
-    data: Record<string, unknown>,
-    cart: Cart
+    _optionData: Record<string, unknown>,
+    _data: Record<string, unknown>,
+    _cart: Cart
   ): Promise<number> {
     // Price calculation can be implemented based on business requirements
     // For now, returning 0 as price might be configured in the shipping options
@@ -291,31 +265,86 @@ class PacketaFulfillmentService extends AbstractFulfillmentService {
 
   async getFulfillmentDocuments(
     data: Record<string, unknown>
-  ): Promise<any> {
-    // Can be implemented later to fetch shipping labels or other documents
-    return {}
+  ): Promise<Record<string, unknown>> {
+    try {
+      const shipmentId = data.packeta_shipment_id as string
+      if (!shipmentId) {
+        throw new Error('No Packeta shipment ID found in fulfillment data')
+      }
+
+      // Get both PDF and ZPL format labels
+      const [pdfLabel, zplLabel] = await Promise.all([
+        this.client.getShipmentLabel(shipmentId),
+        this.client.getShipmentLabelZpl(shipmentId)
+      ])
+
+      return {
+        pdf_label: pdfLabel,
+        zpl_label: zplLabel,
+        label_format: {
+          pdf: 'base64',
+          zpl: 'xml_escaped'
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to get fulfillment documents: ${error.message}`)
+      }
+      throw error
+    }
   }
 
   async getReturnDocuments(
     data: Record<string, unknown>
-  ): Promise<any> {
-    // Can be implemented later to fetch return labels
-    return {}
+  ): Promise<Record<string, unknown>> {
+    try {
+      const returnShipmentId = data.return_shipment_id as string
+      if (!returnShipmentId) {
+        throw new Error('No return shipment ID found in data')
+      }
+
+      const label = await this.client.getShipmentLabel(returnShipmentId)
+      return {
+        pdf_label: label,
+        label_format: 'base64'
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to get return documents: ${error.message}`)
+      }
+      throw error
+    }
   }
 
   async getShipmentDocuments(
-    data: Record<string, unknown>
-  ): Promise<any> {
+    _data: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     // Can be implemented later to fetch shipment documents
     return {}
   }
 
   async retrieveDocuments(
-    fulfillmentData: Record<string, unknown>,
-    documentType: "invoice" | "label"
-  ): Promise<any> {
+    _fulfillmentData: Record<string, unknown>,
+    _documentType: "invoice" | "label"
+  ): Promise<Record<string, unknown>> {
     // Can be implemented later to fetch specific document types
     return {}
+  }
+
+  /**
+   * Retrieves tracking information for a shipment
+   * @param trackingNumber - The tracking number of the shipment
+   * @returns Tracking information including status and history
+   */
+  async trackShipment(trackingNumber: string): Promise<Record<string, unknown>> {
+    try {
+      return await this.client.getShipmentTracking(trackingNumber)
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to get tracking info: ${error.message}`)
+      }
+      throw new Error('Failed to get tracking info: Unknown error')
+    }
   }
 
   /**

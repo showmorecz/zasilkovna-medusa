@@ -36,9 +36,10 @@ export class PacketaApiClient {
       return response.data
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        throw new Error(`Packeta API Error: ${error.response?.data?.message || error.message}`)
+        const message = error.response?.data?.message || error.message;
+        throw new Error(`Packeta API Error: ${message}`);
       }
-      throw error
+      throw new Error(`Packeta API Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -67,6 +68,74 @@ export class PacketaApiClient {
     try {
       const response = await this.client.get('/pickup-points')
       return response.data
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Packeta API Error: ${error.response?.data?.message || error.message}`)
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Retrieves tracking information for a shipment
+   * @param trackingNumber - The tracking number of the shipment to track
+   * @returns Tracking information including status and history
+   */
+  async getShipmentTracking(trackingNumber: string): Promise<Record<string, unknown>> {
+    try {
+      const response = await this.client.get(`/shipments/${trackingNumber}/tracking`)
+      return response.data
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Packeta API Error: ${error.response?.data?.message || error.message}`)
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Retrieves a PDF label for a shipment
+   * @param shipmentId - The ID of the shipment to get the label for
+   * @returns Base64 encoded PDF label
+   */
+  async getShipmentLabel(shipmentId: string): Promise<string> {
+    try {
+      const response = await this.client.get(`/shipments/${shipmentId}/label`)
+      return response.data.label
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Packeta API Error: ${error.response?.data?.message || error.message}`)
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Retrieves PDF labels for multiple shipments
+   * @param shipmentIds - Array of shipment IDs to get labels for
+   * @returns Base64 encoded PDF containing all labels
+   */
+  async getBulkShipmentLabels(shipmentIds: string[]): Promise<string> {
+    try {
+      const response = await this.client.post('/shipments/labels', { ids: shipmentIds })
+      return response.data.labels
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Packeta API Error: ${error.response?.data?.message || error.message}`)
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Retrieves a ZPL format label for a shipment
+   * @param shipmentId - The ID of the shipment to get the label for
+   * @returns ZPL format label (requires XML unescaping)
+   */
+  async getShipmentLabelZpl(shipmentId: string): Promise<string> {
+    try {
+      const response = await this.client.get(`/shipments/${shipmentId}/label/zpl`)
+      return response.data.label
     } catch (error) {
       if (axios.isAxiosError(error)) {
         throw new Error(`Packeta API Error: ${error.response?.data?.message || error.message}`)
