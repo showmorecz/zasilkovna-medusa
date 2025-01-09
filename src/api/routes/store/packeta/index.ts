@@ -1,8 +1,7 @@
 import { Router } from "express"
 import { wrapHandler } from "@medusajs/medusa"
 import { getPickupPoints } from "./get-pickup-points"
-
-const router = Router()
+import { getTracking } from "./get-tracking"
 
 export default (storeRouter: Router) => {
   const packetaRouter = Router()
@@ -13,6 +12,12 @@ export default (storeRouter: Router) => {
    * GET /store/packeta/pickup-points
    */
   packetaRouter.get("/pickup-points", wrapHandler(getPickupPoints))
+
+  /**
+   * Get tracking information for a shipment
+   * GET /store/packeta/tracking/:tracking_number
+   */
+  packetaRouter.get("/tracking/:tracking_number", wrapHandler(getTracking))
 
   return storeRouter
 }
